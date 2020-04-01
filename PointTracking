@@ -1,0 +1,198 @@
+import ddf.minim.*;
+import ddf.minim.analysis.*;
+import ddf.minim.effects.*;
+import ddf.minim.signals.*;
+import ddf.minim.spi.*;
+import ddf.minim.ugens.*;
+
+import processing.sound.*;
+Sound s;
+Pulse pulse;
+TriOsc triangle;
+
+import org.openkinect.freenect.*;
+import org.openkinect.processing.*;
+
+KinectTracker tracker;
+Kinect kinect;
+Minim minim;
+
+import controlP5.*;
+
+Textlabel SmallestInput;
+Textlabel SmallestInputValue;
+
+ControlP5 cp5;
+Range range;
+int randomX, randomY;
+SinOsc sin = new SinOsc(this);
+PVector v2 = new PVector();
+
+String[] imgFilenames = {"clouds.jpg"}; 
+PImage[] filesImages = new PImage[imgFilenames.length]; 
+
+String[] songFileNames = {"Diep.mp3", "dieper.mp3", "diepst.mp3", "oepstever.mp3"};
+AudioPlayer[] files = new AudioPlayer[songFileNames.length];
+int minColorHue = 0;
+int maxColorHue = 360;
+int prevIncreaseY = 0;
+boolean debug = true;
+int sections = 10;
+float[] posX = new float[sections];
+float[] posY = new float[sections];
+float[] size = new float[sections];
+float reverseValue;
+
+void setup() {
+  size(640, 530);
+
+  kinect = new Kinect(this);
+  kinect.initDepth();
+  tracker = new KinectTracker();
+  cp5 = new ControlP5(this);
+  pulse = new Pulse(this); 
+  pulse.play();
+
+  triangle = new TriOsc(this);
+  triangle.play();
+
+  sin.play(200, 0.2);
+  sin = new SinOsc(this);
+  sin.play(209, 0.2);
+  s = new Sound(this);
+
+  minim = new Minim(this); 
+  for (int i = 0; i < songFileNames.length; i++) {
+    files[i] = minim.loadFile(songFileNames[i]);
+  }
+
+  range = cp5.addRange("Threshold")
+    .setBroadcast(false) 
+    .setPosition(width /2 -140, height -40)
+    .setSize(400, 30)
+    .setHandleSize(10)
+    .setRange(0, 4500)
+    .setRangeValues(tracker.getThresholdMin(), tracker.getThresholdMax())
+    .setBroadcast(true)
+    .setColorForeground(color(255, 80))
+    .setColorBackground(color(255, 40))  
+    ;
+  SmallestInput = cp5.addTextlabel("label")
+    .setText("SMALLEST INPUT")
+    .setPosition(10, height -40)
+    .setColorValue(255)
+    .setHeight(9)
+    ;
+  SmallestInputValue = cp5.addTextlabel("inputValue")
+    .setValue("4800")
+    .setPosition(10, height -20)
+    .setColorValue(255)
+    .setHeight(9)
+    ;
+
+
+  noStroke();
+  for (int a = 0; a < imgFilenames.length; a++) {
+    filesImages[a] = loadImage(imgFilenames[a]);
+  }
+}
+int counter = 0;
+
+
+void draw() {
+  background(55);
+  ;
+
+
+  tracker.track();
+  tracker.display();
+  int[] depth = kinect.getRawDepth();
+  int currentMinValue = min(depth);
+
+
+  //  fill(255, 0, 0);
+  //  ellipseMode(CENTER);
+  //  ellipse(randomX, randomY, 15, 15);
+  //  noFill();
+  //  stroke(0, 255, 0);
+
+
+
+
+
+
+  if (!debug) {
+    v2 = tracker.getLerpedPos();
+  } else {
+    v2.x = mouseX;
+    v2.y = mouseY;
+  }
+
+  float d = dist(width/2, height/2, v2.x, v2.y);
+  //rectMode(CORNER);
+  //if (d < 60) {
+  //  files[0].play();
+  //  println("Speel iets");
+  //  image(filesImages[0], 0, 0);
+  //} else if (files[0].isPlaying()){
+  //   files[0].rewind();
+  //   files[0].pause();
+  //   background(255); 
+  //}
+
+  sin.play(d, 0.2);
+  pulse.play(d, 0.4);
+  triangle.play(d, 0.2);
+
+
+  float amplitude = map(currentMinValue, 300, 750, 0.7, 0.0);
+  s.volume(amplitude);
+  //println(currentMinValue);
+  //println(d); 
+  colorMode(RGB);
+  fill(255, 0, 0);
+  noStroke();
+  ellipse(v2.x, v2.y, 20, 20);
+
+  rectMode(CENTER);
+  colorMode(HSB, 360); 
+  float colors = map(v2.x, 0, 2000, minColorHue, maxColorHue); 
+
+  reverseValue =  map(currentMinValue, 700, 500, 50, 200); 
+  fill(colors, 360, 360);
+  rect(width/2, height/2, reverseValue, reverseValue, 20);
+
+  int increaseYTop = int(map(v2.y, height/2, 0, 0, sections));
+  int increaseYBottom = int(map(v2.y, height/2, height, 0, sections));
+  addRects(increaseYTop);
+  addRects(increaseYBottom);
+  println(increaseYTop);
+ 
+}
+
+
+void addRects(int increaseY){
+ if (increaseY != prevIncreaseY) {
+    for (int i =0; i< increaseY; i++) {
+      size[i] = random(20, 100);
+      posX[i] = random(150, width-150);
+      posY[i] = random(150,height-150);
+ 
+    prevIncreaseY = increaseY;
+  }
+  }
+  for (int j =0; j< increaseY; j++) {
+    rect(posX[j], posY[j], size[j] *(reverseValue /200), size[j] *(reverseValue /200), 20);
+  }
+}
+
+
+
+void controlEvent(ControlEvent theControlEvent) {
+  if (theControlEvent.isFrom("Threshold")) {
+
+    tracker.setThresholdMin(int(theControlEvent.getController().getArrayValue(0)));
+    tracker.setThresholdMax(int(theControlEvent.getController().getArrayValue(1)));
+    println("range update, done.");
+  }
+}
